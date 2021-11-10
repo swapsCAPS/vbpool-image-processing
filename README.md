@@ -1,0 +1,2 @@
+# TODO
+- [ ] dedupe rects
