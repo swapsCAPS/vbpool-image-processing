@@ -1,0 +1,11 @@
+attrs==21.2.0
+imutils==0.5.4
+iniconfig==1.1.1
+numpy==1.21.4
+opencv-python==4.5.3.56
+packaging==21.2
+pluggy==1.0.0
+py==1.11.0
+pyparsing==2.4.7
+pytest==6.2.5
+toml==0.10.2

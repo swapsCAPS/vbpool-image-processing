@@ -1,8 +1,7 @@
 # import the necessary packages
-from lib import align_images, crop_back, find_rects, process_back
+from lib import process_back
 import numpy as np
 import argparse
-import imutils
 import cv2
 import logging as log
 import os
