@@ -7,13 +7,16 @@ import imutils
 import cv2
 import logging as log
 import os
+from glob import glob
 
 from lib.align_images import align_images
 from lib.rect_utils import (
     snap_rects_to_nearest_vertical,
     align_rects_to_self,
     cluster_rects_on_diff,
-    to_cv2_rect)
+    to_cv2_rect,
+    find_missing_rects,
+)
 
 log.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 
@@ -34,14 +37,14 @@ def crop(image, bounds, ratio_crop=False):
 def crop_back(back_image, debug=False):
     image = back_image.copy()
 
-    left_table_coords = [[.318, .270], [0.492, .843]]
-    right_table_coords = [[.810, .270], [0.992, .843]]
+    left_table_coords = [[.0, .270], [0.492, .845]]
+    right_table_coords = [[.495, .270], [0.992, .845]]
 
     left_table = crop(image, left_table_coords, ratio_crop=True)
     right_table = crop(image, right_table_coords, ratio_crop=True)
 
     if debug is True:
-        stacked = np.hstack([left_table, right_table])
+        stacked = np.hstack([left_table])#, right_table])
         cv2.imshow("cropped", stacked)
         cv2.waitKey(0)
 
@@ -60,7 +63,7 @@ def find_rects(image, debug=False):
 
     contours, hierarchy = cv2.findContours(
         image=working_img,
-        mode=cv2.RETR_EXTERNAL,
+        mode=cv2.RETR_TREE,
         method=cv2.CHAIN_APPROX_SIMPLE
     )
 
@@ -87,7 +90,7 @@ def dedupe_rects(input_rects, eps):
     """
 
     working_rects = []
-    for [x1] in input_rects:
+    for r in input_rects:
         working_rects.append(r)
         working_rects.append(r) # lol do it twice ;'D
 
@@ -147,26 +150,26 @@ def find_stances_and_toto(image, debug=False):
 
         log.warn(f"found nothing for {r} {w} {h}")
 
-    first_half  = cluster_rects_on_diff(first_half, axis=1, min_diff=30)
-    second_half = cluster_rects_on_diff(second_half, axis=1, min_diff=30)
-    toto        = cluster_rects_on_diff(toto, axis=1, min_diff=30)
+    process = lambda x: cluster_rects_on_diff(x, axis=1, min_diff=30)
+    first_half  = process(first_half)
+    second_half = process(second_half)
+    toto        = process(toto)
 
-    first_half  = [align_rects_to_self(group, axis=1, method="average") for group in first_half]
-    second_half = [align_rects_to_self(group, axis=1, method="average") for group in second_half]
-    toto        = [align_rects_to_self(group, axis=1, method="average") for group in toto]
+    process = lambda x: align_rects_to_self(x, axis=1, method="average", dedupe=True)
+    first_half  = [process(group) for group in first_half]
+    second_half = [process(group) for group in second_half]
+    toto        = [process(group) for group in toto]
 
     first_half = [rs[0] for rs in first_half]
     second_half = [rs[0] for rs in second_half]
     toto = [rs[0] for rs in toto]
 
+    second_half = find_missing_rects(image, second_half, debug=True)
+
     frame = image.copy()
     first_half  = [to_cv2_rect(frame, r, color=(255, 0, 0), thickness=3) for r in first_half]
     second_half = [to_cv2_rect(frame, r, color=(0, 255, 0), thickness=3) for r in second_half]
     toto        = [to_cv2_rect(frame, r, color=(0, 0, 255), thickness=3) for r in toto]
-
-    #  first_half  = dedupe_rects(first_half, .008)
-    #  second_half = dedupe_rects(second_half, .008)
-    #  toto        = dedupe_rects(toto, .008)
 
     if debug is True:
         debug_image = frame.copy()
@@ -182,7 +185,6 @@ def find_stances_and_toto(image, debug=False):
         cv2.destroyAllWindows()
 
     first_half = np.array(first_half)
-    print('first_half', first_half[0])
     second_half = np.array(second_half)
     toto = np.array(toto)
 
@@ -194,14 +196,111 @@ def find_stances_and_toto(image, debug=False):
 
 
     """
-def process_back(image, debug=False):
-    template = cv2.imread("./pool-form-back-1.png")
+
+def find_stances_and_toto_naive(
+    image,
+    debug=False,
+    template = cv2.imread("./pool-form-back-left.png"),
+    first_half_x_pos = 807,
+    second_half_x_pos = 972,
+    toto_x_pos = 1136,
+    row_count = 26
+):
     aligned = align_images(image, template, debug=False)
 
-    back = crop_back(aligned, debug=False)
+    match_width = 155
+    toto_width = 70
 
-    find_stances_and_toto(back["left"], debug=True)
-    find_stances_and_toto(back["right"], debug=True)
+    row_height = 62
+
+    first_half = []
+    second_half = []
+    toto = []
+
+    top_offset = 10
+    row_y_diff = 77
+
+    for row in range(0, row_count):
+        y_pos = top_offset + (row * row_y_diff)
+
+        first_half.append([
+            first_half_x_pos,
+            y_pos,
+            first_half_x_pos + match_width,
+            y_pos + row_height,
+        ])
+
+        second_half.append([
+            second_half_x_pos,
+            y_pos,
+            second_half_x_pos + match_width,
+            y_pos + row_height,
+        ])
+
+        toto.append([
+            toto_x_pos,
+            y_pos,
+            toto_x_pos + toto_width,
+            y_pos + row_height,
+        ])
+
+    frame = aligned.copy()
+    first_half  = [to_cv2_rect(frame, r, color=(255, 0, 0), thickness=3) for r in first_half]
+    second_half = [to_cv2_rect(frame, r, color=(0, 255, 0), thickness=3) for r in second_half]
+    toto        = [to_cv2_rect(frame, r, color=(0, 0, 255), thickness=3) for r in toto]
+
+    return frame
+
+    #  cv2.imshow("debug_image", frame)
+    #  cv2.waitKey(0)
+    #  cv2.destroyAllWindows()
+
+parse_num = lambda f: int(f.split("-")[-1].split(".")[0])
+
+def process_back(image, debug=False):
+    poule_file_names = glob("/home/dan/Downloads/poulespng/*")
+    print('poule_file_names', poule_file_names)
+
+    back_images = [file_name for file_name in poule_file_names if parse_num(file_name) % 2 == 0 ]
+    back_images = sorted(back_images, key=parse_num)
+
+    template = cv2.imread("./pool-form-back-1.png")
+    for back_image in back_images:
+        num = parse_num(back_image)
+
+        image = cv2.imread(back_image)
+
+        aligned = align_images(image, template, debug=False)
+
+        back = crop_back(aligned, debug=False)
+
+        left = find_stances_and_toto_naive(
+            back["left"],
+            template = cv2.imread("./pool-form-back-left.png"),
+            debug=False,
+            first_half_x_pos = 807,
+            second_half_x_pos = 972,
+            toto_x_pos = 1136,
+            row_count = 26
+        )
+
+        right = find_stances_and_toto_naive(
+            back["right"],
+            template = cv2.imread("./pool-form-back-right.png"),
+            debug=False,
+            row_count=25,
+            first_half_x_pos=798,
+            second_half_x_pos=966,
+            toto_x_pos=1133,
+        )
+
+        cv2.imwrite(f"/tmp/poule_{num}_left.png", left)
+        cv2.imwrite(f"/tmp/poule_{num}_right.png", right)
+
+
+
+    #  find_stances_and_toto(back["left"], debug=True)
+    #  find_stances_and_toto(back["right"], debug=True)
 
 
 

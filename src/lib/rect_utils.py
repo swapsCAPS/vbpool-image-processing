@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import logging as log
 import os
+import imutils
 
 log.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 
@@ -22,6 +23,9 @@ def cluster_rects_on_diff(input_rects, axis=0, min_diff=30):
     input_rects = sorted(input_rects, key=lambda r: r[axis])
     input_rects = np.array(input_rects)
 
+    if input_rects.size == 0:
+        return input_rects
+
     # Get the difference for each axis pos with [..., axis]
     diff_indexes = np.where(np.diff(input_rects[..., axis]) > min_diff)[0]
     # np.split needs + 1
@@ -32,9 +36,8 @@ def cluster_rects_on_diff(input_rects, axis=0, min_diff=30):
     # split original array on the indexes we've fetched
     return np.split(input_rects, diff_indexes)
 
-def align_rects_to_self(input_rects, axis=0, method="average"):
+def align_rects_to_self(input_rects, axis=0, method="average", dedupe=False):
     input_rects = np.array(input_rects)
-    print('input_rects', input_rects)
 
     positions = input_rects[..., axis] # Grab axis from each array
 
@@ -51,7 +54,11 @@ def align_rects_to_self(input_rects, axis=0, method="average"):
 
         result.append(working_rect)
 
-    log.debug(result)
+    result = np.array(result)
+    if dedupe is True:
+        u, indices = np.unique(result[..., 1], return_index=True)
+        result = np.take(result, indices, axis=0)
+        log.debug(f"align_rects_to_self got {len(input_rects)} deduped to {len(result)}")
 
     return result
 
@@ -114,3 +121,48 @@ def to_cv2_rect(image, rect, color=(255, 0, 0), thickness=3):
 
    return cv2.rectangle(image, (x1, y1), (x2, y2), color, thickness)
 
+def find_missing_rects(image, input_rects, desired_count=26, debug=False):
+    MAX_DIFF = 80
+
+    input_rects = np.array(input_rects)
+
+    diffs = np.diff(input_rects[..., 1])
+    diffs = diffs[diffs < MAX_DIFF]
+
+    if len(diffs) == 0:
+        raise Exception(f"Weird input, could not find min_diff, max_diff is {MAX_DIFF}")
+
+    print('diffs', diffs)
+    min_diff = int(np.average(diffs))
+    print('min_diff', min_diff)
+
+    avg_height = int(np.average(input_rects[..., 3] - input_rects[..., 1]))
+
+    mid_point = int(avg_height / 2)
+
+    """
+    TODO investigate template matching as an alternative to manual positioning...
+    """
+
+    if debug is True:
+        debug_image = image.copy()
+
+        width = image.shape[1]
+        print('width', width)
+        height = image.shape[0]
+        print('height', height)
+
+        line_every = min_diff
+
+        margin_top = int(line_every / 2)
+
+        for i in range(desired_count):
+            y_pos = margin_top + (line_every * i)
+            cv2.line(debug_image, (0, y_pos), (width, y_pos), (0, 255, 255), 2)
+
+        cv2.imshow("Aligned image", imutils.resize(debug_image, height=900))
+        cv2.waitKey(0)
+
+
+
+    return np.array(result)

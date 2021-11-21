@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
 import logging as log
+import imutils
 
-def align_images(image, template, max_features=500, keep_percent=0.2, debug=False):
+def align_images(image, template, max_features=1000, keep_percent=0.4, debug=False):
     image_gray    = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
 
@@ -29,7 +30,7 @@ def align_images(image, template, max_features=500, keep_percent=0.2, debug=Fals
     if debug is True:
         log.debug("rendering debug image")
         debug_img = cv2.drawMatches(image, keypoints_a, template, keypoints_b, matches, None)
-        debug_img = imutils.resize(debug_img, width=1000)
+        debug_img = imutils.resize(debug_img, width=1400)
         cv2.imshow("Matched keypoints", debug_img)
         cv2.waitKey(0)
 
@@ -56,6 +57,10 @@ def align_images(image, template, max_features=500, keep_percent=0.2, debug=Fals
     log.debug("warpPerspective")
     aligned = cv2.warpPerspective(image, H, (w, h))
     # return the aligned image
+
+    if debug is True:
+        cv2.imshow("Aligned image", imutils.resize(aligned, height=900))
+        cv2.waitKey(0)
 
     log.debug("done!")
     return aligned
