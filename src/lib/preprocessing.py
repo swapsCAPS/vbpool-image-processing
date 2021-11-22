@@ -4,9 +4,12 @@ import numpy as np
 import sys
 import logging as log
 import os
-import imutils
 
 log.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
+
+def add_alpha(image, alpha_value=255):
+    alpha_channel = np.full(image.shape[:2], alpha_value, dtype=np.uint8)
+    return np.dstack((image, alpha_channel))
 
 def blur(image, amount=5, debug=False):
     return cv2.GaussianBlur(image, (amount, amount), 0)
@@ -68,11 +71,12 @@ if __name__ == "__main__":
 
     result = globals()[fn](image, **args)
 
-    cv2.imshow(fn, result)
-    filename = f"{image_name}_{fn}.png"
+    new_filename = ".".join(image_name.split(".")[:-1])
+    filename = f"{new_filename}_{fn}.png"
 
     log.debug(f"writing file {filename}")
 
+    cv2.imshow(f"{fn} - {filename}", result)
     cv2.imwrite(filename, result)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
