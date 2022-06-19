@@ -6,20 +6,19 @@ import numpy as np
 import logging as log
 import math
 
-def perspective_warp():
-    aligned = cv2.warpPerspective(image, H, (w, h))
-
-def request_user_input(image, debug=False):
+def perpective_input(source, debug=False):
     global inputs
+
+    source_height, source_width = source.shape[:2]
+
+    req_height = 1000
+
+    ratio = req_height / source_height
+    print(ratio)
+
+    image = imutils.resize(source, height=req_height)
     clone = image.copy()
     inputs = []
-
-    steps = [
-        dict(title="Select TL"),
-        dict(title="Select TR"),
-        dict(title="Select BR"),
-        dict(title="Select BL"),
-    ]
 
     def click_handler(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -30,19 +29,20 @@ def request_user_input(image, debug=False):
     cv2.setMouseCallback("Select points", click_handler)
 
     while len(inputs) < 4:
-        cv2.imshow("Select points", imutils.resize(image, height=1080))
+        for p in inputs:
+            cv2.drawMarker(image, p, (0, 0, 255), cv2.MARKER_CROSS)
+
+        cv2.imshow("Select points", image)
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("r"):
             image = clone.copy()
+        if key == ord("u"):
+            image = clone.copy()
+            if len(inputs) > 0: inputs.pop()
+            continue
         elif key == ord("q"):
             break
-
-    print("inputs:")
-    print("TL", inputs[0])
-    print("TR", inputs[1])
-    print("BR", inputs[2])
-    print("BL", inputs[3])
 
     input=np.float32(inputs)
 
@@ -52,20 +52,11 @@ def request_user_input(image, debug=False):
     x = input[0,0]
     y = input[0,1]
 
-    hh, ww = image.shape[:2]
-
     output = np.float32([[x,y], [x+width-1,y], [x+width-1,y+height-1], [x,y+height-1]])
 
-    matrix = cv2.getPerspectiveTransform(input, output) 
-    aligned = cv2.warpPerspective(image, matrix, (ww, hh), cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(255,255,255))
+    matrix = cv2.getPerspectiveTransform(input, output)
+    return cv2.warpPerspective(source, matrix, (source_width, source_height), cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(255,255,255))
         
-    while True:
-        cv2.imshow("Select points", imutils.resize(aligned, height=1080))
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):
-            break
-
-
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--image", required=True,
@@ -75,4 +66,10 @@ if __name__ == "__main__":
 
     image = cv2.imread(args["image"])
 
-    request_user_input(image)
+    aligned = perpective_input(image)
+
+    while True:
+        cv2.imshow("Select points", aligned)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
+            break
