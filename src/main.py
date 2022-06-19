@@ -21,3 +21,4 @@ image = cv2.imread(args["image"])
 
 # align the images
 process_back(image, debug=True)
+
