@@ -258,7 +258,7 @@ def find_stances_and_toto_naive(
 parse_num = lambda f: int(f.split("-")[-1].split(".")[0])
 
 def process_back(image, debug=False):
-    poule_file_names = glob("/home/dan/Downloads/poulespng/*")
+    poule_file_names = glob("poulepngs/*")
     print('poule_file_names', poule_file_names)
 
     back_images = [file_name for file_name in poule_file_names if parse_num(file_name) % 2 == 0 ]
